@@ -1,0 +1,56 @@
+int LED = 12;
+
+
+class MorseCode
+{
+  public: 
+  
+  String nameInMorse = "-.-. .- .-.. .-.. ..- --/.-. .. - -.-. .... .. .";
+  int timeUnit = 400;
+  int dot = timeUnit;
+  int dash = timeUnit * 3;
+  int timeBetweenSymbol = timeUnit;
+  int letterSpace = timeUnit * 3;
+  int wordSpace = timeUnit * 7;
+
+  MorseCode() {}
+
+  void flash(int time){
+    digitalWrite(LED, HIGH);
+    delay(time);
+    digitalWrite(LED, LOW);
+    delay(timeBetweenSymbol);
+  }
+
+  
+  void playMorse(){
+    
+    for (int i = 0; i < nameInMorse.length(); i++){
+      char symbol = nameInMorse[i];
+      if (symbol == '.'){flash(dot);}
+      else if (symbol == '-'){flash(dash);}
+      else if (symbol == ' '){delay(letterSpace);}
+      else if (symbol == '/'){delay(wordSpace);}
+     
+    }
+  }
+};
+  
+MorseCode morse;
+
+
+void setup(){
+  pinMode(LED, OUTPUT);
+  Serial.begin(9600); 
+  
+}
+
+
+
+
+
+void loop() {
+  delay(2000);
+  morse.playMorse(); 
+}
+
