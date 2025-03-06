@@ -1,0 +1,85 @@
+int LED = 12;
+#include <iostream>
+#include <map>
+#include <string>
+
+class MorseCode
+{
+  public: 
+  
+  
+  String nameInMorse = "";
+  int timeUnit = 400;
+  int dot = timeUnit;
+  int dash = timeUnit * 3;
+  int timeBetweenSymbol = timeUnit;
+  int letterSpace = timeUnit * 3;
+  int wordSpace = timeUnit; //This delay should be 7, but because there is already a 3 second delay each side of a / or space we only need to wait 1
+
+  MorseCode() {}
+
+  void flash(int time){
+    digitalWrite(LED, HIGH);
+    delay(time);
+    digitalWrite(LED, LOW);
+    delay(timeBetweenSymbol);
+  }
+
+  
+  void playMorse(){
+    
+    for (int i = 0; i < nameInMorse.length(); i++){
+      char symbol = nameInMorse[i];
+      if (symbol == '.'){flash(dot);}
+      else if (symbol == '-'){flash(dash);}
+      else if (symbol == ' '){delay(letterSpace);}
+      else if (symbol == '/'){delay(wordSpace);}
+     
+    }
+  }
+
+  void printName(){
+    Serial.println("Name to be displayed: ");
+    Serial.println(nameInMorse);
+  }
+
+  void convertName(String name){
+    int tempInt;
+    for (int i = 0; i < name.length(); i++){
+      char letter = toupper(name[i]);
+      
+      nameInMorse += Letter[letter];
+      nameInMorse.concat(" ");
+      
+    }
+  }
+
+  std::map<char, String> Letter = {
+    {'A', ".-"}, {'B', "-..."}, {'C', "-.-."}, {'D', "-.."}, {'E', "."}, {'F', "..-."}, {'G', "--."}, {'H', "...."}, 
+    {'I', ".."}, {'J', ".---"}, {'K', "-.-"}, {'L', ".-.."}, {'M', "--"}, {'N', "-."}, {'O', "---"},
+    {'P', ".--."}, {'Q', "--.-"}, {'R', ".-."}, {'S', "..."}, {'T', "-"}, {'U', "..-"}, {'V', "...-"}, {'W', ".--"}, 
+    {'X', "-..-"}, {'Y', "-.--"}, {'Z', "--.."}, {' ', "/"}
+  };
+};
+  
+MorseCode morse;
+
+
+void setup(){
+  pinMode(LED, OUTPUT);
+  Serial.begin(9600); 
+  delay(1000);
+  Serial.println("Welcome");
+  morse.convertName("Callum Ritchie");
+}
+
+
+
+
+
+void loop() {
+  morse.printName(); 
+  morse.playMorse(); 
+  delay(2); 
+}
+
