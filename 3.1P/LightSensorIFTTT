@@ -1,0 +1,163 @@
+#include <BH1750.h>
+#include <Wire.h>
+
+#include <WiFiS3.h>
+//Internet connection
+#include "secrets.h"
+const char* ssid = SECRET_SSID;
+const char* pass = SECRET_PASS;
+const String Key = IFTTT_Key;
+int status = WL_IDLE_STATUS;
+
+WiFiClient client;
+//IFTTT connection
+char HOST_NAME[] = "maker.ifttt.com";
+String PATH_NAME = "/trigger/Sunlight/with/key/" + String(Key);
+
+
+BH1750 lightMeter;
+
+
+void PrintNetwork()
+{
+  Serial.print("WiFi Status: ");
+  Serial.println(WiFi.status());
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+}
+
+//Wifi connection method
+void ConnectWiFi()
+{
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+  Serial.println("Communication with WiFi module failed!");
+  while (true);
+  }
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+  Serial.println("Please upgrade the firmware");
+  }
+  // Attempt to connect to WiFi network:
+
+  while (status != WL_CONNECTED) {
+  Serial.print("Attempting to connect to WPA SSID: ");
+  Serial.println(ssid);
+  // Connect to WPA/WPA2 network:
+  status = WiFi.begin(ssid, pass);
+  // wait 10 seconds for connection:
+  delay(10000);
+  }
+  // You're connected now, so print out the data:
+  Serial.println("You're connected to Wifi");
+  PrintNetwork();
+}
+
+//Send IFTTT webhook
+void sendWebhook(String sun, int luxValue)
+{
+
+  if (client.connect(HOST_NAME, 80)) {
+    // if connected:
+    Serial.println("Connected to server");
+     // change your EVENT-NAME and YOUR-KEY
+    String queryString = "?value1=" + String(sun) + "&value2=" + luxValue;  
+     
+
+    // make a HTTP request:
+      // send HTTP header
+      client.println("GET " + PATH_NAME + queryString + " HTTP/1.1");
+      client.println("Host: " + String(HOST_NAME));
+      client.println("Connection: close");
+      client.println(); // end HTTP header
+
+
+      while (client.connected()) {
+        if (client.available()) {
+          // read an incoming byte from the server and print it to serial monitor:
+          char c = client.read();
+          Serial.print(c);
+        }
+      }
+
+      // the server's disconnected, stop the client:
+      client.stop();
+      Serial.println();
+      Serial.println("disconnected");
+  }
+  else {// if not connected:
+    Serial.println("connection failed");
+  }
+  
+}
+
+
+
+
+bool daylight;
+float daylightValue = 70;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  ConnectWiFi();
+
+  // connect to web server on port 80:
+  if (client.connect(HOST_NAME, 80)) {
+    // if connected:
+    Serial.println("Connected to server");
+  }
+  else {// if not connected:
+    Serial.println("connection failed");
+  }
+
+
+  Wire.begin();
+  lightMeter.begin();
+  lightMeter.configure(BH1750::CONTINUOUS_HIGH_RES_MODE);
+
+  //Check to see if there is already sunlight
+  float lux = lightMeter.readLightLevel();
+  if (lux > daylightValue){daylight = true;}
+  else {daylight = false;}
+  
+}
+
+
+
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  float lux = lightMeter.readLightLevel();
+  Serial.print("Light Intensity = ");
+  Serial.println(lux);
+
+  if (daylight && lux < daylightValue)
+  {
+    delay(10000);
+    lux = lightMeter.readLightLevel();
+    if (lux < daylightValue) 
+    {
+      Serial.print("Daylight has disappeared");
+      daylight = false;
+      sendWebhook("disappeared", lux);
+    }
+  }
+
+  if (!daylight && lux > daylightValue)
+  {
+    delay(10000);
+    lux = lightMeter.readLightLevel();
+    if (lux > daylightValue)
+    {
+      Serial.print("Daylight has appeared");
+      daylight = true;
+      sendWebhook("appeared", lux);
+    }
+  }
+
+  delay(1500);
+}
