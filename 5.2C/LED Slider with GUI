@@ -1,0 +1,192 @@
+from PyQt5 import QtCore, QtGui, QtWidgets
+import sys
+import RPi.GPIO as GPIO
+import time
+import threading
+
+#GPIO setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(19, GPIO.OUT)
+GPIO.setup(18, GPIO.OUT)
+GPIO.setup(13, GPIO.OUT)
+
+#PWM setup
+pwmBlue= GPIO.PWM(13, 50)
+pwmRed = GPIO.PWM(18, 50)
+pwmGreen = GPIO.PWM(19, 50)
+
+#Setup for "method locks"
+redLock = False
+greenLock = False
+blueLock = False
+
+#This method handles the button input
+def toggleLight(pin):
+    if pin == 18:
+        timer = threading.Timer(0, lightLock, args=(pwmRed, "red",)) 
+        timer.start()
+        
+    if pin == 19:
+        timer = threading.Timer(0, lightLock, args=(pwmGreen, "green",)) 
+        timer.start()
+    if pin == 13:
+        timer = threading.Timer(0, lightLock, args=(pwmBlue, "blue",)) 
+        timer.start()
+        
+    if pin == 99:
+        timer = threading.Timer(0, lightLock, args=(pwmRed, "red",))
+        timer.start()
+        timer = threading.Timer(0, lightLock, args=(pwmBlue, "blue",))
+        timer.start()
+        timer = threading.Timer(0, lightLock, args=(pwmGreen, "green",)) 
+        timer.start()
+        
+#This method checks to see if the process is running (or "locked")
+#If not "locked" it runs the lightFlash method and "locks" the method
+#after the method is finished it "unlocks" the method
+def lightLock(pwm, slider):
+    global redLock, blueLock, greenLock
+    if slider == "red":
+        if redLock:
+            return
+        redLock = True
+    if slider == "blue":
+        if blueLock:    
+            return
+        blueLock = True
+    if slider == "green":
+        if greenLock:
+            return
+        greenLock = True
+        
+    flashLight(pwm, slider)
+    
+    if slider == "green":
+        greenLock = False
+    if slider == "red":
+        redLock = False
+    if slider == "blue":
+        blueLock = False
+    
+    
+#The method is responsible for flashing the lights
+def flashLight(pwm, slider):
+    i = 0
+    flashes = ui.getSpinboxValue()
+    while i < flashes:
+        brightness = ui.getSliderValue(slider)
+        pwm.start(brightness)
+        time.sleep(0.4)
+        pwm.stop()
+        time.sleep(0.4)
+        i = i + 1
+        
+    
+#UI imported from QTDesigner
+class Ui_MainWindow(object):
+    def setupUi(self, MainWindow):
+        MainWindow.setObjectName("MainWindow")
+        MainWindow.resize(800, 600)
+        MainWindow.setMinimumSize(QtCore.QSize(0, 0))
+        font = QtGui.QFont()
+        font.setPointSize(8)
+        MainWindow.setFont(font)
+        self.centralwidget = QtWidgets.QWidget(MainWindow)
+        self.centralwidget.setObjectName("centralwidget")
+        self.pushButton = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton.setGeometry(QtCore.QRect(70, 260, 161, 101))
+        self.pushButton.setObjectName("pushButton")
+        self.pushButton.clicked.connect(lambda: toggleLight(18))
+        self.pushButton_2 = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton_2.setGeometry(QtCore.QRect(320, 260, 161, 101))
+        self.pushButton_2.setObjectName("pushButton_2")
+        self.pushButton_2.clicked.connect(lambda: toggleLight(19))
+        self.pushButton_3 = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton_3.setGeometry(QtCore.QRect(570, 260, 161, 101))
+        self.pushButton_3.setObjectName("pushButton_3")
+        self.pushButton_3.clicked.connect(lambda: toggleLight(13))
+        self.label = QtWidgets.QLabel(self.centralwidget)
+        self.label.setGeometry(QtCore.QRect(240, 10, 351, 71))
+        self.label.setSizeIncrement(QtCore.QSize(0, 0))
+        self.label.setBaseSize(QtCore.QSize(1, 0))
+        font = QtGui.QFont()
+        font.setPointSize(33)
+        self.label.setFont(font)
+        self.label.setObjectName("label")
+        self.label_2 = QtWidgets.QLabel(self.centralwidget)
+        self.label_2.setGeometry(QtCore.QRect(240, 430, 271, 71))
+        self.label_2.setSizeIncrement(QtCore.QSize(0, 0))
+        self.label_2.setBaseSize(QtCore.QSize(1, 0))
+        font = QtGui.QFont()
+        font.setPointSize(11)
+        self.label_2.setFont(font)
+        self.label_2.setObjectName("label_2")
+        self.ledFlashCounter = QtWidgets.QSpinBox(self.centralwidget)
+        self.ledFlashCounter.setGeometry(QtCore.QRect(540, 450, 41, 31))
+        self.ledFlashCounter.setMinimum(1)
+        self.ledFlashCounter.setMaximum(10)
+        self.ledFlashCounter.setObjectName("ledFlashCounter")
+        self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton_4.setGeometry(QtCore.QRect(320, 110, 161, 101))
+        self.pushButton_4.setObjectName("pushButton_4")
+        self.pushButton_4.clicked.connect(lambda: toggleLight(99))
+        self.redSlider = QtWidgets.QSlider(self.centralwidget)
+        self.redSlider.setGeometry(QtCore.QRect(70, 370, 160, 16))
+        self.redSlider.setOrientation(QtCore.Qt.Horizontal)
+        self.redSlider.setTickPosition(QtWidgets.QSlider.NoTicks)
+        self.redSlider.setTickInterval(0)
+        self.redSlider.setObjectName("redSlider")
+        self.greenSlider = QtWidgets.QSlider(self.centralwidget)
+        self.greenSlider.setGeometry(QtCore.QRect(320, 370, 160, 16))
+        self.greenSlider.setOrientation(QtCore.Qt.Horizontal)
+        self.greenSlider.setObjectName("greenSlider")
+        self.blueSlider = QtWidgets.QSlider(self.centralwidget)
+        self.blueSlider.setGeometry(QtCore.QRect(570, 370, 160, 16))
+        self.blueSlider.setOrientation(QtCore.Qt.Horizontal)
+        self.blueSlider.setObjectName("blueSlider")
+        MainWindow.setCentralWidget(self.centralwidget)
+        self.menubar = QtWidgets.QMenuBar(MainWindow)
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 21))
+        self.menubar.setObjectName("menubar")
+        MainWindow.setMenuBar(self.menubar)
+        self.statusbar = QtWidgets.QStatusBar(MainWindow)
+        self.statusbar.setObjectName("statusbar")
+        MainWindow.setStatusBar(self.statusbar)
+
+        self.retranslateUi(MainWindow)
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+
+    def retranslateUi(self, MainWindow):
+        _translate = QtCore.QCoreApplication.translate
+        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        self.pushButton.setText(_translate("MainWindow", "Red LED"))
+        self.pushButton_2.setText(_translate("MainWindow", "Green LED"))
+        self.pushButton_3.setText(_translate("MainWindow", "Blue LED"))
+        self.label.setText(_translate("MainWindow", "LED Button GUI"))
+        self.label_2.setText(_translate("MainWindow", "How many times should the LED flash?"))
+        self.pushButton_4.setText(_translate("MainWindow", "Flash all LED\'s"))
+        
+    #Gets the value from the spinBox    
+    def getSpinboxValue(self):
+        return self.ledFlashCounter.value()
+    
+    #Gets the values from the brightness 3 sliders
+    def getSliderValue(self, colour):
+        if colour == "red":
+            return self.redSlider.value()
+        if colour == "blue":
+            return self.blueSlider.value()
+        if colour == "green":
+            return self.greenSlider.value()
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = Ui_MainWindow()
+    ui.setupUi(MainWindow)
+    MainWindow.show()
+    sys.exit(app.exec_())
+
