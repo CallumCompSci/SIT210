@@ -1,0 +1,209 @@
+#include <WiFiS3.h>
+//Internet connection
+#include "secrets.h"
+
+
+
+WiFiServer server(80);
+
+String header;
+
+//Internet connection params
+const char* ssid = SECRET_SSID;
+const char* pass = SECRET_PASS;
+int status = WL_IDLE_STATUS;
+WiFiClient client;
+
+
+//LED setup
+const int greenLEDPin = 1;
+const int redLEDPin = 4;
+const int blueLEDPin = 7;
+
+//LED_STATES
+bool greenLED = false;
+bool redLED = false;
+bool blueLED = false;
+
+
+
+
+//Prints the network the Arduino has connected to
+void PrintNetwork()
+{
+  Serial.print("WiFi Status: ");
+  Serial.println(WiFi.status());
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+}
+
+//Wifi connection method
+void ConnectWiFi()
+{
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+  Serial.println("Communication with WiFi module failed!");
+  while (true);
+  }
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+  Serial.println("Please upgrade the firmware");
+  }
+  // Attempt to connect to WiFi network:
+
+  while (status != WL_CONNECTED) {
+  Serial.print("Attempting to connect to WPA SSID: ");
+  Serial.println(ssid);
+  // Connect to WPA/WPA2 network:
+  status = WiFi.begin(ssid, pass);
+  // wait 10 seconds for connection:
+  delay(10000);
+  }
+  // You're connected now, so print out the data:
+  Serial.println("You're connected to Wifi");
+  PrintNetwork();
+}
+
+void ToggleLight(String colour)
+{
+  if (colour == "RED")
+  {
+    redLED = !redLED;
+    digitalWrite(redLEDPin, redLED ? HIGH : LOW);
+    Serial.println("Toggle Red Light");
+  }
+  if (colour == "GREEN")
+  {
+    greenLED = !greenLED;
+    digitalWrite(greenLEDPin, greenLED ? HIGH : LOW);
+    Serial.println("Toggle Green Light");
+  }
+  if (colour == "BLUE")
+  {
+    blueLED = !blueLED;
+    digitalWrite(blueLEDPin, blueLED ? HIGH : LOW);
+    Serial.println("Toggle Blue Light");
+  }
+}
+
+// Current time
+unsigned long currentTime = millis();
+// Previous time
+unsigned long previousTime = 0; 
+// Define timeout time in milliseconds (example: 2000ms = 2s)
+const long timeoutTime = 2000;
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  ConnectWiFi();
+  pinMode(greenLEDPin, OUTPUT);
+  pinMode(redLEDPin, OUTPUT);
+  pinMode(blueLEDPin, OUTPUT);
+
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  server.begin();
+
+  digitalWrite(redLEDPin, LOW);
+  digitalWrite(greenLEDPin, LOW);
+  digitalWrite(blueLEDPin, LOW);
+
+}
+
+void loop() {
+  WiFiClient client = server.available();
+  
+  if (client) { // If a new client connects,
+    currentTime = millis();
+    previousTime = currentTime;
+    Serial.println("New Client."); 
+    String currentLine = ""; //Hold incoming messages from the Client
+    
+    while (client.connected() && currentTime - previousTime <= timeoutTime) { 
+      currentTime = millis();
+      if (client.available()) { 
+        char c = client.read(); 
+        Serial.write(c); //If we have a client connected we read bytes
+        header += c;
+        if (currentLine.length() == 0) {
+          if (c == '\n') { //END OF RESPONSE          
+            //Toggle lights
+          
+            if (header.indexOf("GET /RED/toggle") == 0)
+            {
+              ToggleLight("RED");
+            } 
+            else if (header.indexOf("GET /BLUE/toggle") == 0)
+            {
+              ToggleLight("BLUE");
+            } 
+            else if (header.indexOf("GET /GREEN/toggle") == 0)
+            {
+              ToggleLight("GREEN");
+            }
+            else if (header.indexOf("GET /status") == 0)
+            {
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: text/plain");
+              client.println("Access-Control-Allow-Origin: *"); 
+              client.println("Connection: close"); 
+              client.println(); 
+              //Send back light status
+              client.print("{");
+              client.print("\"red\": ");
+              client.print(redLED ? "true" : "false");
+              client.print(", \"green\": ");
+              client.print(greenLED ? "true" : "false");
+              client.print(", \"blue\": ");
+              client.print(blueLED ? "true" : "false");
+              client.print("}");
+              break;
+            }
+            else
+            {
+              // Unknown request
+              client.println("HTTP/1.1 404 Not Found");
+              client.println("Content-Type: text/plain");
+              client.println("Connection: close");
+              client.println();
+              client.println("404 Not Found: The requested resource was not found.");
+              break;
+            }
+
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/plain");
+            client.println("Access-Control-Allow-Origin: *"); 
+            client.println("Connection: close"); 
+            client.println(); 
+            
+
+
+            Serial.println("==== RAW REQUEST START ====");
+            Serial.println(header);
+            Serial.println("==== RAW REQUEST END ====");
+
+            
+            delay(100);
+            break;
+            
+        
+            
+          }  
+        }  
+      }      
+    }  
+    header = "";
+    client.stop();
+    Serial.println("Client disconnected");
+  }
+
+
+}
