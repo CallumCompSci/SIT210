@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<title>LED Controls</title>
+
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="styles.css">
+
+
+
+<body>
+    <center>
+        <h1>ARDUINO LED CONTROL PANEL</h1>
+      
+        <!-- Container to center content -->
+        <div class="container">
+          <!-- Each control group with button, label, and circle -->
+          <div class="circle-container">
+            <input type="button" id="redSwitch" name="redSwitch" value="Toggle">
+            <label for="vehicle1"> Toggle red LED</label>
+            <div class="circle" id="redCircle"></div>
+          </div>
+      
+          <div class="circle-container">
+            <input type="button" id="greenSwitch" name="greenSwitch" value="Toggle">
+            <label for="vehicle2"> Toggle green LED</label>
+            <div class="circle" id="greenCircle"></div>
+          </div>
+      
+          <div class="circle-container">
+            <input type="button" id="blueSwitch" name="blueSwitch" value="Toggle">
+            <label for="vehicle3"> Toggle blue LED</label>
+            <div class="circle" id="blueCircle"></div>
+          </div>
+        </div>
+      </center>
+  
+
+      <script>
+
+        window.onload = function() {
+            updateLEDStatus();
+          };
+
+
+        const redCircle = document.getElementById('redCircle');
+        const greenCircle = document.getElementById('greenCircle');
+        const blueCircle = document.getElementById('blueCircle');
+        function updateLEDStatus() {
+            fetch('http://192.168.0.31/status') // Assuming the Arduino serves the status at /status
+              .then(response => response.json())
+              .then(data => {
+                console.log(data);
+                redCircle.style.backgroundColor = data.red === true ? 'red' : 'gray';
+                greenCircle.style.backgroundColor = data.green === true ? 'green' : 'gray';
+                blueCircle.style.backgroundColor = data.blue === true ? 'blue' : 'gray';
+              })
+              .catch(error => console.error('Error fetching LED status:', error));
+          }
+
+      </script>
+
+
+
+      <script>
+        let isFetching = false;
+        document.getElementById('redSwitch').addEventListener('click', () => {
+            if (isFetching) return;
+            isFetching = true;
+            fetch('http://192.168.0.31/RED/toggle')
+            .then(response => {console.log('Toggled'); updateLEDStatus();})
+            .catch(error => console.error('Error:', error))
+            .finally(() => {
+                isFetching = false;
+            });
+        });
+        document.getElementById('blueSwitch').addEventListener('click', () => {
+            if (isFetching) return;
+            isFetching = true;
+            fetch('http://192.168.0.31/BLUE/toggle')
+              .then(response => {console.log('Toggled'); updateLEDStatus();})
+              .catch(error => console.error('Error:', error))
+              .finally(() => {
+                isFetching = false;
+            });
+          });
+          document.getElementById('greenSwitch').addEventListener('click', () => {
+            if (isFetching) return;
+            isFetching = true;
+            fetch('http://192.168.0.31/GREEN/toggle')
+              .then(response => {console.log('Toggled'); updateLEDStatus();})
+              .catch(error => console.error('Error:', error))
+              .finally(() => {
+                isFetching = false;
+            });
+          });
+      </script>
+
+
+
+
+
+
+
+
+</body>
+</html>
