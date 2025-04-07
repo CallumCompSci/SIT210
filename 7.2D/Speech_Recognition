@@ -1,0 +1,104 @@
+import speech_recognition as speech
+import sounddevice
+import RPi.GPIO as GPIO
+
+rec = speech.Recognizer()
+rec.energy_threshold = 400
+
+blueLED = 14
+redLED = 15
+greenLED = 18
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(14, GPIO.OUT)
+GPIO.output(14, GPIO.LOW)
+GPIO.setup(15, GPIO.OUT)
+GPIO.output(15, GPIO.LOW)
+GPIO.setup(18, GPIO.OUT)
+GPIO.output(18, GPIO.LOW)
+
+LANGUAGE = "en-EN"
+
+redLightOnCommands = ["turn on red light", "turn on the red light", "red light on", "mach das rote licht an", "rotes licht an"]
+redLightOffCommands = ["turn off red light", "turn off the red light", "red light off", "mach das rote licht aus", "rotes licht aus"]
+greenLightOnCommands = ["turn on green light", "turn on the green light", "green light on", "mach das grÃ¼ne licht an", "grÃ¼nes licht an"]
+greenLightOffCommands = ["turn off green light", "turn off the green light", "green light off", "mach das grÃ¼ne licht aus", "grÃ¼nes licht aus"]
+blueLightOnCommands = ["turn on blue light", "turn on the blue light", "blue light on", "mach das blaues licht an", "blaues licht an"]
+blueLightOffCommands = ["turn off blue light", "turn off the blue light", "blue light off", "mach das blaues licht aus", "blaues licht aus"]
+allLightOnCommands = ["turn on all lights", "turn on all the lights", "all lights on", "alle Lichter an", "mach alle lichter an"]
+allLightOffCommands = ["turn off all lights", "turn off all the lights", "all lights off", "alle lichter aus", "mach all lichter aus"]
+
+
+
+def speech_recog():
+    with speech.Microphone() as source:
+        try:
+            rec.adjust_for_ambient_noise(source, duration = 1)
+            print("Listening for audio.......")
+            audio = rec.listen(source, timeout = 14)
+            
+            try:
+                text = rec.recognize_google(audio, language = LANGUAGE)
+                text = text.lower()
+                print(f"You said: {text}")
+                
+                detectCommand(text)
+                
+            except speech.UnknownValueError:
+                print("Google cant understand you, try speaking clearer")
+            except speech.RequestError as e:
+                print(f"Could not request results from google's API; {e}")
+        except speech.WaitTimeoutError as e:
+            print(f"Error; {e}")        
+        except Exception as e:
+            print(f"Error; {e}")
+
+        
+
+def detectCommand(input):
+    global LANGUAGE
+    #red lights
+    if any(command in input for command in redLightOnCommands):
+        GPIO.output(redLED, GPIO.HIGH)
+    if any(command in input for command in redLightOffCommands):
+        GPIO.output(redLED, GPIO.LOW)
+    #green lights 
+    if any(command in input for command in greenLightOnCommands):
+        GPIO.output(greenLED, GPIO.HIGH)
+    if any(command in input for command in greenLightOffCommands):
+        GPIO.output(greenLED, GPIO.LOW)
+    #blue lights   
+    if any(command in input for command in blueLightOnCommands):
+        GPIO.output(blueLED, GPIO.HIGH)
+    if any(command in input for command in blueLightOffCommands):
+        GPIO.output(blueLED, GPIO.LOW)
+    #all lights    
+    if any(command in input for command in allLightOnCommands):
+        GPIO.output(blueLED, GPIO.HIGH)
+        GPIO.output(redLED, GPIO.HIGH)
+        GPIO.output(greenLED, GPIO.HIGH)
+    if any(command in input for command in allLightOffCommands):
+        GPIO.output(blueLED, GPIO.LOW)
+        GPIO.output(redLED, GPIO.LOW)
+        GPIO.output(greenLED, GPIO.LOW)
+        
+        
+    if "change language to german" in input:
+        LANGUAGE = "de-DE"
+        print("Language changed to: ")
+        print(LANGUAGE)
+        
+    if "sprache auf english Ã¤ndern" in input:
+        LANGUAGE = "en-EN"
+        print("Language changed to: ")
+        print(LANGUAGE)
+        
+        
+        
+            
+            
+            
+if __name__ == "__main__":
+    while True:
+        speech_recog()
