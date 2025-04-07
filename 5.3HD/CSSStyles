@@ -1,0 +1,25 @@
+
+  /* Container to center content */
+  .container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 20vh; /* Center vertically */
+    gap: 30px; /* Space between each circle-container */
+  }
+
+  /* Each circle with heading */
+  .circle-container {
+    text-align: center; /* Center the heading, button, label, and circle */
+  }
+
+  /* Circle styling */
+  .circle {
+    width: 100px;
+    height: 100px;
+    background-color: transparent; /* Default no color */
+    border-radius: 50%;
+    margin-top: 10px; /* Space between label and circle */
+    border: 2px solid black;
+  }
+
