@@ -1,0 +1,170 @@
+#include <WiFiS3.h>
+//Internet connection
+#include "secrets.h"
+#include <Servo.h>
+
+Servo servo;
+
+WiFiServer server(80);
+
+String header;
+
+//Internet connection params
+const char* ssid = SECRET_SSID;
+const char* pass = SECRET_PASS;
+int status = WL_IDLE_STATUS;
+WiFiClient client;
+
+
+//Prints the network the Arduino has connected to
+void PrintNetwork()
+{
+  Serial.print("WiFi Status: ");
+  Serial.println(WiFi.status());
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+}
+
+//Wifi connection method
+void ConnectWiFi()
+{
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_MODULE) {
+  Serial.println("Communication with WiFi module failed!");
+  while (true);
+  }
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+  Serial.println("Please upgrade the firmware");
+  }
+  // Attempt to connect to WiFi network:
+
+  while (status != WL_CONNECTED) {
+  Serial.print("Attempting to connect to WPA SSID: ");
+  Serial.println(ssid);
+  // Connect to WPA/WPA2 network:
+  status = WiFi.begin(ssid, pass);
+  // wait 10 seconds for connection:
+  delay(10000);
+  }
+  // You're connected now, so print out the data:
+  Serial.println("You're connected to Wifi");
+  PrintNetwork();
+}
+
+
+// Current time
+unsigned long currentTime = millis();
+// Previous time
+unsigned long previousTime = 0; 
+// Define timeout time in milliseconds (example: 2000ms = 2s)
+const long timeoutTime = 2000;
+
+void openGate()
+{
+  Serial.println("Gate Opening");
+  
+  servo.write(90);
+  delay(1000);
+  
+  for (int pos = 90; pos >= 0; pos -= 5) {
+    servo.write(pos);
+    delay(100); 
+  }
+  
+  Serial.println("Gate Open");
+  delay(4000);
+  
+  Serial.println("Gate Closing");
+  for (int pos = 0; pos <= 90; pos += 5) {
+    servo.write(pos);
+    delay(100); 
+  }
+  
+  Serial.println("Gate Closed");
+}
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  ConnectWiFi();
+
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  server.begin();
+  servo.attach(9);
+}
+
+void loop() {
+  bool openGateBool = false;
+  WiFiClient client = server.available();
+  
+  if (client) { // If a new client connects,
+    currentTime = millis();
+    previousTime = currentTime;
+    Serial.println("New Client."); 
+    String currentLine = ""; //Hold incoming messages from the Client
+    
+    while (client.connected() && currentTime - previousTime <= timeoutTime) { 
+      currentTime = millis();
+      if (client.available()) { 
+        char c = client.read(); 
+        Serial.write(c); //If we have a client connected we read bytes
+        header += c;
+        if (currentLine.length() == 0) {
+          if (c == '\n') { //END OF RESPONSE          
+            //Toggle lights
+          
+            if (header.indexOf("GET /open") == 0)
+            {
+              
+              openGateBool = true;
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: text/plain");
+              client.println("Access-Control-Allow-Origin: *"); 
+              client.println("Connection: close"); 
+              client.println(); 
+              client.println("Opening gate...");
+            } 
+            else
+            {
+              // Unknown request
+              client.println("HTTP/1.1 404 Not Found");
+              client.println("Content-Type: text/plain");
+              client.println("Connection: close");
+              client.println();
+              client.println("404 Not Found: The requested resource was not found.");
+            }         
+
+
+            Serial.println("==== RAW REQUEST START ====");
+            Serial.println(header);
+            Serial.println("==== RAW REQUEST END ====");
+
+            
+            delay(100);
+            break;
+            
+        
+            
+          }  
+        }  
+      }      
+    }  
+    header = "";
+    client.stop();
+    Serial.println("Client disconnected");
+
+    if (openGateBool)
+    {
+      openGate();
+    }
+  }
+
+
+}
