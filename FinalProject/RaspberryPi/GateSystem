@@ -1,0 +1,199 @@
+
+from gpiozero import Button
+from gpiozero import LED
+import RPi.GPIO as GPIO
+import mfrc522
+import signal
+import requests
+from picamera2 import Picamera2
+from io import BytesIO
+import time
+from signal import pause
+import json
+import sys
+
+continue_reading = True
+greenLED = LED(16)
+yellowLED = LED(20)
+redLED = LED(21)
+
+def end_read(signal,frame):
+    global continue_reading
+    print("Ctrl+C captured, ending read.")
+    GPIO.cleanup()
+    sys.exit()
+
+
+def capture_photo():
+    stream = BytesIO()
+    cam = Picamera2()
+    config = cam.create_still_configuration()
+    cam.configure(config)
+    cam.start()
+    try:
+        cam.capture_file(stream, format = 'jpeg')
+    finally:
+        cam.stop()
+        cam.close()
+    stream.seek(0)
+    image = stream.read()
+    return image
+
+def buttonPress(cardID):
+    print("BUTTON PRESSED")
+    SERVER_URL4 = "http://192.168.0.110:5001/empPhoto"
+    try:
+        #Send photo to UI
+        img = capture_photo()
+        files = {"image": img}
+        data = {'id': cardID}
+        response = requests.post(SERVER_URL4, files = files, data = data, timeout=4)
+    except Exception as ex:
+        print(f"Exception: {ex}")
+        
+
+def uploadPhotoToUI(url, files, data):
+    #Send photo to UI
+    try:
+        response = requests.post(url, files = files, data = data, timeout=0.1)
+    except Exception as ex:
+        print(f"Photo sent to UI (This error is expected, timeout is 0.1. Exception: {ex}")
+
+def uploadToFacialRecog(url, files, data):
+    try:
+        response = requests.post(url, files = files, data = data, timeout=18)
+    except Exception as ex:
+        print(f"Error connection to facial recog API. Talk to sys manager. {ex}")
+    result = str(response.json())
+    print(response.json())
+    return result
+
+def openGate(url):
+    try:
+        response4 = requests.get(url, timeout=12, verify=False)
+    except Exception as ex:
+        print(f"Error with gate connection, may hae timed out. {ex}")
+    
+def uploadEntry(url, cardID):
+    data = {'Employeeid': cardID, 'Manualentry': False}
+    jsondata = json.dumps(data)
+    headers = {'Content-Type': 'application/json'}
+    #Upload entry
+    try:
+        print("Trying to upload entry")
+        response3 = requests.post(url, headers = headers, data = jsondata, timeout=1, verify=False)
+    except Exception as ex:
+        print(f"Exception: {ex}")
+
+def uploadResult(url, result):
+    data = {'result': result}        
+    try:
+        response2 = requests.post(resultURL, data = data, timeout=0.1)
+    except Exception as ex:
+        print(f"Timeout sending result to ui, this is normal!")
+
+
+if __name__ == "__main__":
+    cardID = None
+    button = Button(2)
+    button.when_pressed = lambda: buttonPress(cardID)
+
+    recogURL = "http://192.168.0.110:5000/verify"
+    photoURL = "http://192.168.0.110:5001/photo"
+    resultURL = "http://192.168.0.110:5001/result"
+    entryURL = "https://192.168.0.110:5144/api/Entries/AddEntry"
+    gateURL = "http://192.168.0.31/open"
+
+    print("Gate system running")
+    print("Press Ctrl-C to stop.")
+    # Hook the SIGINT
+    signal.signal(signal.SIGINT, end_read)
+
+    # Create an object of the class MFRC522
+    MIFAREReader = mfrc522.MFRC522()
+    cardDetected = False
+    cardNotFound = 0
+    cardIsGone = 3
+    
+    try:
+        while True:
+            
+            # Scan for cards    
+            (status,TagType) = MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL)
+            
+            # Get UID
+            (status,uid) = MIFAREReader.MFRC522_Anticoll()
+
+            # If we have the UID, continue
+            if status == MIFAREReader.MI_OK:
+                yellowLED.on()
+                cardNotFound = 0
+                key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
+                # Select the scanned tag
+                MIFAREReader.MFRC522_SelectTag(uid)
+                # Authenticate
+                status = MIFAREReader.MFRC522_Auth(MIFAREReader.PICC_AUTHENT1A, 8, key, uid)
+                # Check if authenticated
+                if status == MIFAREReader.MI_OK:
+                    data2 = MIFAREReader.MFRC522_Read(8)
+                    
+                    if data2 is not None:
+                        cardID = data2[0]
+                    else:
+                        cardID = 0
+                    #Makes sure the api is only called once per tap
+                    if not cardDetected:
+                        print(f"Card detected..... ID: {cardID}")
+                        cardDetected = True
+                        #send to api
+                        try:
+                            img = capture_photo()
+                            files = {"image": img}
+                            data = {'id': cardID}
+                            uploadPhotoToUI(photoURL, files, data)
+                            
+                            #Send photo to facial recog (this is the important API call)
+                            result = uploadToFacialRecog(recogURL, files, data)
+                            if result != "True":
+                                result = "False"
+                            data = {'result': result}
+                            print(f"Result = {result}")
+                            yellowLED.off()
+                            if result == "True":
+                                #Open the gate
+                                
+                                greenLED.on()
+                                openGate(gateURL)
+                                uploadEntry(entryURL, cardID)
+                                
+                            uploadResult(resultURL, result)
+                            
+                            if result == "False":
+                                redLED.on()
+                                time.sleep(2)
+                        except Exception as ex:
+                            print(f"Exception: {ex}")
+                
+                
+                    MIFAREReader.MFRC522_StopCrypto1()
+                else:
+                    print("Authentication error")      
+            else:
+                cardNotFound += 1
+                
+                if cardDetected and cardNotFound >= cardIsGone:
+                    print(f"Card removed")
+                    cardDetected = False
+                    cardNotFound = 0
+            time.sleep(0.1)
+            greenLED.off()
+            redLED.off()
+            yellowLED.off()
+    finally:
+        
+        GPIO.cleanup()
+        
+
+   
+
+
