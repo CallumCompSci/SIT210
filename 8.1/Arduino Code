@@ -1,0 +1,90 @@
+#include <ArduinoBLE.h>
+
+
+BLEService dataService("550e8400-e29b-41d4-a716-446655440000");
+BLEIntCharacteristic intCharacteristic("550e8400-e29b-41d4-a716-446655440001", BLEWrite);
+
+int ledPin = 13;
+int value = 7;
+
+void blinkLED(int dist) 
+{
+  if (dist == 6)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(500);
+    digitalWrite(ledPin, LOW);
+    delay(500);
+  }
+  else if (dist == 5)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(400);
+    digitalWrite(ledPin, LOW);
+    delay(400);
+  }
+  if (dist == 4)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(300);
+    digitalWrite(ledPin, LOW);
+    delay(300);
+  }
+  else if (dist == 3)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(200);
+    digitalWrite(ledPin, LOW);
+    delay(200);
+  }
+  else if (dist == 2)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(100);
+    digitalWrite(ledPin, LOW);
+    delay(100);
+  }
+  else if (dist == 1)
+  {
+    digitalWrite(ledPin, HIGH);
+    delay(100);
+  }
+  
+}
+
+
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  Serial.begin( 9600 ); 
+  BLE.begin();
+  BLE.setLocalName("Arduino");
+  BLE.setAdvertisedService(dataService);
+  dataService.addCharacteristic(intCharacteristic);
+  BLE.addService(dataService);
+  
+  BLE.advertise();
+  Serial.println("Bluetooth running");
+
+  Serial.print("Arduino MAC Address: ");
+  Serial.println(BLE.address());
+
+}
+void loop() 
+{
+  blinkLED(value);
+  BLEDevice central = BLE.central();
+  if (central) {
+    Serial.println("Connection");
+    
+    while (central.connected()) {
+      blinkLED(value);
+      if (intCharacteristic.written()) {
+        value = intCharacteristic.value();
+      }
+    }
+    Serial.println("Disconnected");
+  }
+  
+}
+
+
