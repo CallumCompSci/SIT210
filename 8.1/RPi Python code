@@ -1,0 +1,92 @@
+import asyncio
+from bleak import BleakClient
+import RPi.GPIO as GPIO
+import time
+
+ARDUINO_MAC = "48:27:e2:e0:18:c1"
+CHAR_UUID = "550e8400-e29b-41d4-a716-446655440001"
+
+value = 7
+prevValue = 7
+SIG = 21 
+
+
+def get_distance():
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(SIG, GPIO.OUT)
+
+    GPIO.output(SIG, False)
+    time.sleep(0.000002)
+    GPIO.output(SIG, True)
+    time.sleep(0.00001)
+    GPIO.output(SIG, False)
+    
+    GPIO.setup(SIG, GPIO.IN)
+    
+    timeout = time.time() + 0.1 
+
+    while GPIO.input(SIG) == 0:
+        pulse_start = time.time()
+        if pulse_start > timeout:
+            return -1
+    
+    while GPIO.input(SIG) == 1:
+        pulse_end = time.time()
+        if pulse_end > timeout:
+            return -1
+    
+    
+    pulse_duration = pulse_end - pulse_start
+    distance = pulse_duration * 17150
+    return round(distance, 2)
+    
+    
+GPIO.setwarnings(False)
+GPIO.cleanup()
+
+
+async def main(MAC, prevValue):
+    client = BleakClient(MAC)
+    try:
+        await client.connect()
+        print(f"Connected to {ARDUINO_MAC}")
+    
+        while True:
+            dist = get_distance()
+            time.sleep(0.2)
+            if dist > 0:
+                print(f"Distance: {dist} cm")
+            if dist > 130:
+                value = 7
+            if dist > 100 and dist < 130:
+                value = 6
+            if dist > 80 and dist < 100:
+                value = 5
+            if dist > 60 and dist < 80:
+                value = 4
+            if dist > 40 and dist < 60:
+                value = 3
+            if dist > 20 and dist < 40:
+                value = 2
+            if dist > 0 and dist < 20:
+                value = 1                
+            else:
+                print("Timeout - no echo received")
+                
+            if dist > 0 and value != prevValue:
+                prevValue = value
+                int_bytes = value.to_bytes(4, byteorder='little')
+                await client.write_gatt_char(CHAR_UUID, int_bytes)
+                print(f"Sent: {value}")
+
+            time.sleep(0.1)
+
+    finally:
+        await client.disconnect()
+        print("Disconnected")
+        GPIO.cleanup()
+ 
+
+
+asyncio.run(main(ARDUINO_MAC, prevValue))
+
